@@ -72,46 +72,26 @@ icu <- doh_data2 %>%
                mutate_fun = apply.weekly,
                FUN        = mean) 
 
-# plot data
-notification_fig <- ggplot(data=notifications, aes(x=Date, y=values, group=Region)) +
-  geom_line()+
-  geom_point() +
-  facet_wrap(~Region, scales="free") +
-  theme_bw() +
-  ylab("Mean notifications per week") +
-  xlab("Date")
-
-ggsave(paste0("Figures/notifications_by_region_", uploadDate, ".tiff"))
-
-death_fig <- ggplot(data=deaths, aes(x=Date, y=values, group=Region)) +
-  geom_line()+
-  geom_point() +
-  facet_wrap(~Region, scales="free") +
-  theme_bw() +
-  ylab("Mean deaths per week") +
-  xlab("Date")
-
-ggsave(paste0("Figures/deaths_by_region_", uploadDate, ".tiff"))
-
-icu_fig <- ggplot(data=icu, aes(x=Date, y=values, group=Region)) +
-  geom_line()+
-  geom_point() +
-  facet_wrap(~Region, scales="free") +
-  theme_bw() +
-  ylab("Mean ICU beds used per week") +
-  xlab("Date")
-
-ggsave(paste0("Figures/icu_by_region_", uploadDate, ".tiff"))
-
-# format and save data
+# format, plot, and save data
 dfs <- list(notifications, deaths, icu)
 names <- c("notifications", "deaths", "icu")
 regions <- unique(notifications$Region)
 
 for(i in 1:length(dfs)){
+  # subset by calibration target
   dfx <- dfs[[i]]
   dfx$values <- round(dfx$values)
   dfx$times <- as.numeric(difftime(dfx$Date, startdate, units = "days"))
+  # plot
+  fig <- ggplot(data=dfx, aes(x=Date, y=values, group=Region)) +
+    geom_line()+
+    geom_point() +
+    facet_wrap(~Region, scales="free") +
+    theme_bw() +
+    ylab(paste0("Mean ", names[i], " per week")) +
+    xlab("Date")
+  ggsave(paste0("Figures/", names[i], "_by_region_", uploadDate, ".tiff"))
+  # subset by region
   for(j in regions){
     dfx2 <- subset(dfx, Region == j)
     dfx2 <- subset(dfx2, times > 40 & times < max(times))
