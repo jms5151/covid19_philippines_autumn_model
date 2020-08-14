@@ -63,19 +63,42 @@ stop_plot_date <- as.Date(uploadDate, "%Y-%m-%d") + 49 # 6 weeks after upload da
 stop_plot_time <- as.numeric(difftime(stop_plot_date, as.Date("2019-12-31", "%Y-%m-%d")))
 
 x2 <- subset(x, times <= stop_plot_time)
-x3 <- subset(x2, Region == "calabarzon" & Scenario == "S_0")
-
+x3 <- subset(x2, Region == "philippines" & Scenario == "S_0")
+end_calibration <- x$times[max(which(!is.na(x3$local_data_notifications)))]
+x3$model <- ifelse(x3$times <= end_calibration, "calibrated", "uncalibrated")
+  
 # is milinda plotting notifications_at_sympt_onset or 50%ile for comparison with local data??
 # plot(x3$times, x3$notifications_at_sympt_onset, type = 'l', ylim=c(0,5000))
 # points(x3$times, x3$local_data_notifications, pch = 16, col = 'blue')
-plot(x3$times, x3$notifications_Q0.5, type = 'l', ylim=c(0,5000))
-lines(x3$times, x3$notifications_Q0.25, type = 'l', lty = 2)
-lines(x3$times, x3$notifications_Q0.75, type = 'l', lty = 2)
-points(x3$times, x3$local_data_notifications, pch = 16, col = 'blue')
-summary(lm(x3$local_data_notifications~x3$notifications_Q0.5))
 
-end_calibration <- which(x$times == max(!is.na(x$notifications_at_sympt_onset)))
+# plot(x3$times, x3$notifications_Q0.5, type = 'l')
+# lines(x3$times, x3$notifications_Q0.25, type = 'l', lty = 2)
+# lines(x3$times, x3$notifications_Q0.75, type = 'l', lty = 2)
+# points(x3$times, x3$local_data_notifications, pch = 16, col = 'blue')
 
+ymax <- max(x3$notifications_Q0.75) + 100
+xmax <- max(x3$times)
+
+plot(x3$times[x3$model == "calibrated"], x3$notifications_Q0.5[x3$model == "calibrated"], type = 'l', xlim = c(0, xmax), ylim = c(0, ymax), ylab = c("notifications"), xlab = "")
+lines(x3$times[x3$model == "calibrated"], x3$notifications_Q0.25[x3$model == "calibrated"], type = 'l', lty = 2, xlim = c(0, xmax), ylim = c(0, ymax))
+lines(x3$times[x3$model == "calibrated"], x3$notifications_Q0.75[x3$model == "calibrated"], type = 'l', lty = 2, xlim = c(0, xmax), ylim = c(0, ymax))
+points(x3$times[x3$model == "calibrated"], x3$local_data_notifications[x3$model == "calibrated"], pch = 16, xlim = c(0, xmax), ylim = c(0, ymax))
+
+lines(x3$times[x3$model == "uncalibrated"], x3$notifications_Q0.5[x3$model == "uncalibrated"], type = 'l', xlim = c(0, xmax), ylim = c(0, ymax), col = "blue", lwd = 2)
+lines(x3$times[x3$model == "uncalibrated"], x3$notifications_Q0.25[x3$model == "uncalibrated"], type = 'l', lty = 2, xlim = c(0, xmax), ylim = c(0, ymax), col = "blue", lwd = 2)
+lines(x3$times[x3$model == "uncalibrated"], x3$notifications_Q0.75[x3$model == "uncalibrated"], type = 'l', lty = 2, xlim = c(0, xmax), ylim = c(0, ymax), col = "blue", lwd = 2)
+# points(x3$times[x3$model == "uncalibrated"], x3$local_data_notifications[x3$model == "uncalibrated"], pch = 16, col = 'blue', xlim = c(0, xmax), ylim = c(0, ymax), col = "blue", lwd = 2)
+
+# radar plot
+library(fmsb)
+
+data <- data.frame("R2_Notifications" = round(summary(lm(x3$local_data_notifications~x3$notifications_Q0.5))$adj.r.squared, 2),
+                   "R2_ICU" = round(summary(lm(x3$local_data_icu~x3$prevXlate_activeXclinical_icuXamong_Q0.5))$adj.r.squared, 2),
+                   "R2_Deaths" = round(summary(lm(x3$local_data_deaths~x3$infection_deathsXall_Q0.5))$adj.r.squared, 2))
+
+data <- rbind(data.frame("R2_Notifications" = c(-1, 1), "R2_ICU" = c(-1, 1), "R2_Deaths" = c(-1, 1)), data)
+
+radarchart(data)
 
 ggplot(data = x2, aes(x = times, y = notifications_at_sympt_onset, group = Scenario, col = Scenario)) +
   geom_line() +
