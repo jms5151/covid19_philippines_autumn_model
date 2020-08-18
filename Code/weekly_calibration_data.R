@@ -68,7 +68,7 @@ icu <- doh_data2 %>%
   filter(Date <= as.Date(uploadDate, "%Y-%m-%d")) %>%
   filter(Region == "philippines" | Region == "manila" | Region == "calabarzon" | Region == "central-visayas") %>% 
   group_by(Region, Date) %>%
-  summarise(values = sum(icu_o)) %>%
+  summarise(values = sum(icu_o, na.rm = T)) %>%
   tq_transmute(select     = values,
                mutate_fun = apply.weekly,
                FUN        = mean) 

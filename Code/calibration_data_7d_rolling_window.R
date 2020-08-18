@@ -8,11 +8,11 @@ library(zoo)
 library(ggplot2)
 
 # load data
-uploadDate <- "2020-08-08"
+uploadDate <- "2020-08-16"
 fileName <- paste0("FASSSTER_Data/ConfirmedCases_Final_", uploadDate, ".csv")
 fassster_data <- read.csv(fileName, head = T, stringsAsFactors = F) 
 
-uploadDate2 <- "20200809"
+uploadDate2 <- "20200816"
 fileName2 <- paste0("DOH_COVID_Data_Drop/DOH COVID Data Drop_ ", uploadDate2, " - 05 DOH Data Collect - Daily Report.csv")
 doh_data <- read.csv(fileName2, head = T, stringsAsFactors = F) 
 
@@ -49,7 +49,7 @@ notifications <- fassster_data2 %>%
   group_by(Region, Date) %>%
   summarise(values = length(Date)) %>%
   complete(Date = seq.Date(min(Date), max(Date), by="day")) %>%
-  mutate(values = round(rollmean(x = values, k = 7, fill=NA)))
+  mutate(values = round(rollapply(values, width = 7, FUN = mean, align = "left", fill = NA, na.rm = T)))
 
 # aggregate death data to weekly values 
 deaths <- fassster_data2 %>%
@@ -59,7 +59,8 @@ deaths <- fassster_data2 %>%
   group_by(Region, Date) %>%
   summarise(values = length(Date)) %>%
   complete(Date = seq.Date(min(Date), max(Date), by="day")) %>%
-  mutate(values = round(rollmean(x = values, k = 7, fill=NA)))
+  mutate(values = round(rollapply(values, width = 7, FUN = mean, align = "left", fill = NA, na.rm = T)))
+
 
 # aggregate ICU data to weekly values 
 icu <- doh_data2 %>%
@@ -67,9 +68,9 @@ icu <- doh_data2 %>%
   filter(Date <= as.Date(uploadDate, "%Y-%m-%d")) %>%
   filter(Region == "philippines" | Region == "manila" | Region == "calabarzon" | Region == "central-visayas") %>% 
   group_by(Region, Date) %>%
-  summarise(values = sum(icu_o)) %>%
+  summarise(values = sum(icu_o, na.rm = T)) %>%
   complete(Date = seq.Date(min(Date), max(Date), by="day")) %>%
-  mutate(values = round(rollmean(x = values, k = 7, fill=NA)))
+  mutate(values = round(rollapply(values, width = 7, FUN = mean, align = "left", fill = NA, na.rm = T)))
 
 # format, plot, and save data
 dfs <- list(notifications, deaths, icu)
@@ -87,7 +88,7 @@ for(i in 1:length(dfs)){
     geom_point() +
     facet_wrap(~Region, scales="free") +
     theme_bw() +
-    ylab(paste0("Mean ", names[i], " per week")) +
+    ylab(paste0("Mean daily", names[i])) +
     xlab("Date")
   ggsave(paste0("Figures/", uploadDate, "_", names[i], "_by_region.tiff"))
   # subset by region
@@ -95,8 +96,6 @@ for(i in 1:length(dfs)){
     dfx2 <- subset(dfx, Region == j)
     dfx2 <- subset(dfx2, times > 40 & times < max(times)-9)
     dfx2 <- dfx2[complete.cases(dfx2),]
-    # save for validation
-    write.csv(dfx2, paste0("powerbi_derived_ouputs/", uploadDate, "_", j, "_", names[i], ".csv"), row.names = F)
     # format and save data for calibration plots
     times_wide <- paste(dfx2$times, collapse=", ")
     values_wide <- paste("[", dfx2$values, "]", collapse=",")

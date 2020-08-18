@@ -1,39 +1,38 @@
 library("dplyr")
 library("dbplyr")
+library("tidyverse")
 
+# Current model output -------------------------------------------------------------------------------
 # list most powerbi databases and order by date of download
 dbfiles <- file.info(list.files("powerbi_derived_ouputs/", full.names = T))
 dbfiles$filename <- rownames(dbfiles)
 dbfiles <- dbfiles[order(dbfiles$mtime),]
 
 # load powerbi files and extract derived outputs
-src_dbi(tmp_powerbi)
+# src_dbi(tmp_powerbi)
 most_recent_db_files_indexes <- seq(nrow(dbfiles)-3, nrow(dbfiles), 1)
 powerbi_df <- data.frame()
   
 for(i in most_recent_db_files_indexes){
   tmp_filename <- dbfiles$filename[i]
-  # derived outputs
   tmp_powerbi <- DBI::dbConnect(RSQLite::SQLite(), tmp_filename)
-  tmp_derived_outputs <- tbl(tmp_powerbi, "derived_outputs")
-  tmp_derived_outputs <- tmp_derived_outputs %>%
-    select(Scenario, times, notifications_at_sympt_onset, icu_occupancy, total_infection_deaths)
-  tmp_derived_outputs <- data.frame(tmp_derived_outputs)
-  # uncertainty
+  # uncertainty outputs
   tmp_uncertainty <- tbl(tmp_powerbi, "uncertainty")
   tmp_uncertainty <- data.frame(tmp_uncertainty)
   colnames(tmp_uncertainty)[3] <- "times" 
+  # filter and format outputs
+  tmp_uncertainty <- subset(tmp_uncertainty, quantile == 0.25 | quantile == 0.5 | quantile == 0.75)
+  tmp_uncertainty <- subset(tmp_uncertainty, type != "incidence")
   tmp_uncertainty$level <- paste0(tmp_uncertainty$type, "_Q", tmp_uncertainty$quantile) 
   tmp_uncertainty <- spread(tmp_uncertainty[,c("Scenario", "times", "level", "value")], key = level, value = value)
   tmp_uncertainty <- data.frame(tmp_uncertainty)
-  # add region name, combine, and create long dataframe
-  tmp_df <- merge(tmp_derived_outputs, tmp_uncertainty, by = c("Scenario", "times"), all.x = T)
-  tmp_df$Region <- substr(tmp_filename, 32, (nchar(tmp_filename)-22))
-  powerbi_df <- rbind(powerbi_df, tmp_df)
+  # add region name and create long data frame
+  tmp_uncertainty$Region <- substr(tmp_filename, 32, (nchar(tmp_filename)-22))
+  powerbi_df <- rbind(powerbi_df, tmp_uncertainty)
 }
 
 # load calibration data
-uploadDate <- "2020-08-08"
+uploadDate <- "2020-08-16"
 regions <- c("philippines", "manila", "calabarzon", "central-visayas")
 local_data_types <- c("notifications", "icu", "deaths")
 local_data_df <- data.frame()
@@ -54,71 +53,122 @@ for(j in 1:length(regions)){
   local_data_df <- rbind(local_data_df, local_data_tmp_df)
 }
 
-# merge powerbi data with local calibration data
+# merge powerbi data with local calibration data, format, and save
 x <- merge(powerbi_df, local_data_df, by = c("Region", "times"), all.x = T)
+x$Model_run_date <- uploadDate
+x$Data_aquired_date <- uploadDate
+x$Date <- as.Date(x$times, origin = '2019-12-31') #create dates from times
+write.csv(x, paste0("validation/", uploadDate, "_model_run.csv"), row.names = F)
 
-# plot
-# x$Date <- create dates from times? Then plot against dates?
-stop_plot_date <- as.Date(uploadDate, "%Y-%m-%d") + 49 # 6 weeks after upload date
-stop_plot_time <- as.numeric(difftime(stop_plot_date, as.Date("2019-12-31", "%Y-%m-%d")))
+# plot current and all former model runs -----------------------------------------------------
+# read in all prior model runs
+model_runs <- list.files("validation/")
+model_run_dates <- c()
+model_run_dfs <- list()
 
-x2 <- subset(x, times <= stop_plot_time)
-x3 <- subset(x2, Region == "philippines" & Scenario == "S_0")
-end_calibration <- x$times[max(which(!is.na(x3$local_data_notifications)))]
-x3$model <- ifelse(x3$times <= end_calibration, "calibrated", "uncalibrated")
-  
-# is milinda plotting notifications_at_sympt_onset or 50%ile for comparison with local data??
-# plot(x3$times, x3$notifications_at_sympt_onset, type = 'l', ylim=c(0,5000))
-# points(x3$times, x3$local_data_notifications, pch = 16, col = 'blue')
+for(k in 1:length(model_runs)){
+  x <- read.csv(paste0("validation/", model_runs[k]), head = T, stringsAsFactors = F)
+  model_run_name <- substr(model_runs[k], 1, 20)
+  model_run_dates <- c(model_run_dates, as.character(substr(model_runs[k], 1, 10)))
+  x$Date < as.Date(x$Date, "%Y-%m-%d")
+  model_run_dfs[[k]] <- x
+  assign(model_run_name, x)
+}  
 
-# plot(x3$times, x3$notifications_Q0.5, type = 'l')
-# lines(x3$times, x3$notifications_Q0.25, type = 'l', lty = 2)
-# lines(x3$times, x3$notifications_Q0.75, type = 'l', lty = 2)
-# points(x3$times, x3$local_data_notifications, pch = 16, col = 'blue')
+scenariox <- "S_0"
+yvars_local <- c("notifications", "icu", "deaths")
+yvars_derived <- c("notifications", "prevXlate_activeXclinical_icuXamong", "infection_deathsXall")
+yvars_NiceNames <- c("Notifications", "ICU occupancy", "Deaths")
+regions <- c("philippines", "manila", "calabarzon", "central-visayas")
+regionNiceNames <- c("Philippines", "Metro Manila", "Calabarzon", "Central Visayas")
 
-ymax <- max(x3$notifications_Q0.75) + 100
-xmax <- max(x3$times)
+# par(mfrow = c(4, 4), mar = c(2, 2, 2, 0.5), oma=c(0, 4, 8, 2))
+# par(mfrow = c(3, 4), mar = c(2, 2, 2, 0.5), oma=c(2, 4, 8, 2))
 
-plot(x3$times[x3$model == "calibrated"], x3$notifications_Q0.5[x3$model == "calibrated"], type = 'l', xlim = c(0, xmax), ylim = c(0, ymax), ylab = c("notifications"), xlab = "")
-lines(x3$times[x3$model == "calibrated"], x3$notifications_Q0.25[x3$model == "calibrated"], type = 'l', lty = 2, xlim = c(0, xmax), ylim = c(0, ymax))
-lines(x3$times[x3$model == "calibrated"], x3$notifications_Q0.75[x3$model == "calibrated"], type = 'l', lty = 2, xlim = c(0, xmax), ylim = c(0, ymax))
-points(x3$times[x3$model == "calibrated"], x3$local_data_notifications[x3$model == "calibrated"], pch = 16, xlim = c(0, xmax), ylim = c(0, ymax))
+for(l in 1:length(model_run_dates)){
+  x <- model_run_dfs[[l]]
+  if(uploadDate != model_run_dates[l]){
+    new_data <- model_run_dfs[[which((model_run_dates) == max(model_run_dates))]]
+    new_data2 <- new_data[,c("Region", "Date", "Scenario", "local_data_notifications", "local_data_icu", "local_data_deaths")]
+    colnames(new_data2) <- c("Region", "Date", "Scenario", "new_notifications", "new_icu", "new_deaths")
+    x$Data_aquired_date[x$Date >= x$Date[max(which(!is.na(x$local_data_notifications)))]] <- uploadDate
+    x <- merge(x, new_data2, by = c("Region", "Date", "Scenario"), all = T)
+    x$local_data_notifications <- ifelse(is.na(x$local_data_notifications) & x$Data_aquired_date == uploadDate, x$new_notifications, x$local_data_notifications)
+    x$local_data_icu <- ifelse(is.na(x$local_data_icu) & x$Data_aquired_date == uploadDate, x$new_icu, x$local_data_icu)
+    x$local_data_deaths <- ifelse(is.na(x$local_data_deaths) & x$Data_aquired_date == uploadDate, x$new_deaths, x$local_data_deaths)
+  }
+  x$Date <- as.Date(x$Date, "%Y-%m-%d")
+  x$Model_run_date <- as.Date(x$Model_run_date, "%Y-%m-%d")
+  x <- subset(x, Scenario == scenariox)
+  pdf(paste0("Figures/validation_plot_", model_run_dates[l], ".pdf"))
+  par(mfrow = c(3, 4), mar = c(2, 2, 2, 0.5), oma=c(2, 4, 8, 2))
+  for(y in 1:length(yvars_local)){
+    for(rg in 1:length(regions)){
+      # identify column names
+      localData <- paste0("local_data_", yvars_local[y])
+      Q25 <- paste0(yvars_derived[y], "_Q0.25")
+      Q50 <- paste0(yvars_derived[y], "_Q0.5")
+      Q75 <- paste0(yvars_derived[y], "_Q0.75")
+      # subset data appropriately
+      stop_plot_date <- unique(x$Model_run_date) + 49 # 6 weeks after upload date
+      x2 <- subset(x, Date <= stop_plot_date)
+      x3 <- subset(x2, Region == regions[rg])
+      if(uploadDate == model_run_dates[l]){
+        end_calibration <- x3$Date[max(which(!is.na(x3[,localData])))]
+        x3$model <- ifelse(x3$Date <= end_calibration, "calibrated", "uncalibrated")
+      } else {
+        x3$model <- ifelse(x3$Model_run_date == x3$Data_aquired_date, "calibrated", "uncalibrated")
+      } 
+      # set plot limits
+      ymax <- max(x3[Q75]) + 100
+      xmax <- max(x3$Date)
+      xmin <- as.Date("2020-01-01", "%Y-%m-%d")
+      # plot
+      plot(x3$Date[x3$model == "calibrated"], x3[x3$model == "calibrated", Q50], type = 'l', xlim = c(xmin, xmax), ylim = c(0, ymax), ylab = "", xlab = "")
+      lines(x3$Date[x3$model == "calibrated"], x3[x3$model == "calibrated", Q25], type = 'l', lty = 2, xlim = c(xmin, xmax), ylim = c(0, ymax))
+      lines(x3$Date[x3$model == "calibrated"], x3[x3$model == "calibrated", Q75], type = 'l', lty = 2, xlim = c(xmin, xmax), ylim = c(0, ymax))
+      points(x3$Date[x3$model == "calibrated"], x3[x3$model == "calibrated", localData], pch = 16, xlim = c(xmin, xmax), ylim = c(0, ymax))
+      lines(x3$Date[x3$model == "uncalibrated"], x3[x3$model == "uncalibrated", Q50], type = 'l', xlim = c(xmin, xmax), ylim = c(0, ymax), col = "blue")
+      lines(x3$Date[x3$model == "uncalibrated"], x3[x3$model == "uncalibrated", Q25], type = 'l', lty = 2, xlim = c(xmin, xmax), ylim = c(0, ymax), col = "blue")
+      lines(x3$Date[x3$model == "uncalibrated"], x3[x3$model == "uncalibrated", Q75], type = 'l', lty = 2, xlim = c(xmin, xmax), ylim = c(0, ymax), col = "blue")
+      points(x3$Date[x3$model == "uncalibrated"], x3[x3$model == "uncalibrated", localData], pch = 16, xlim = c(xmin, xmax), ylim = c(0, ymax), col = "blue")
+      polygon(x = c(x3$Date[x3$model == "calibrated"], rev(x3$Date[x3$model == "calibrated"])),
+              y = c(x3[x3$model == "calibrated", Q25], rev(x3[x3$model == "calibrated", Q75])),
+              col =  adjustcolor("steelblue", alpha.f = 0.10), border = NA)
+      polygon(x = c(x3$Date[x3$model == "uncalibrated"], rev(x3$Date[x3$model == "uncalibrated"])),
+              y = c(x3[x3$model == "uncalibrated", Q25], rev(x3[x3$model == "uncalibrated", Q75])),
+              col =  adjustcolor("dodgerblue", alpha.f = 0.10), border = NA)
+      r2 <- summary(lm(x3[,localData]~x3[,Q50]))$adj.r.squared
+      legend("topleft", legend =  bquote(italic(R)^2 == .(format(r2, digits = 2))), bty = 'n', cex= 1.2)
+      if(yvars_local[y] == "notifications"){
+        title(regionNiceNames[rg], line = 1)
+      }
+      if(regions[rg] == "philippines"){
+        mtext(yvars_NiceNames[y], side = 2, line = 3)
+      }
+    }
+  }
+  # add major text
+  mtext("AuTuMN Covid-19 model", side = 3, line = 5, adj = 0, outer = T, cex = 1.5)
+  mtext(paste0("Run date: ", model_run_dates[l]), side = 3, line = 3, adj = 0, outer = T, cex = 1.1)
+  dev.off()
+}
 
-lines(x3$times[x3$model == "uncalibrated"], x3$notifications_Q0.5[x3$model == "uncalibrated"], type = 'l', xlim = c(0, xmax), ylim = c(0, ymax), col = "blue", lwd = 2)
-lines(x3$times[x3$model == "uncalibrated"], x3$notifications_Q0.25[x3$model == "uncalibrated"], type = 'l', lty = 2, xlim = c(0, xmax), ylim = c(0, ymax), col = "blue", lwd = 2)
-lines(x3$times[x3$model == "uncalibrated"], x3$notifications_Q0.75[x3$model == "uncalibrated"], type = 'l', lty = 2, xlim = c(0, xmax), ylim = c(0, ymax), col = "blue", lwd = 2)
-# points(x3$times[x3$model == "uncalibrated"], x3$local_data_notifications[x3$model == "uncalibrated"], pch = 16, col = 'blue', xlim = c(0, xmax), ylim = c(0, ymax), col = "blue", lwd = 2)
+# calculate R2 by week
+test <- x
+test$week <- as.numeric(round(difftime(test$Date, test$Model_run_date, units = "weeks")))
+test$week[test$week <= 0] <- 0
+test <- subset(test, Region == "philippines")
+test2 <- sapply(split(test[,c("local_data_notifications", "notifications_Q0.5")], test$week), function(x) summary(lm(x))$r.sq)
 
 # radar plot
 library(fmsb)
 
-data <- data.frame("R2_Notifications" = round(summary(lm(x3$local_data_notifications~x3$notifications_Q0.5))$adj.r.squared, 2),
-                   "R2_ICU" = round(summary(lm(x3$local_data_icu~x3$prevXlate_activeXclinical_icuXamong_Q0.5))$adj.r.squared, 2),
-                   "R2_Deaths" = round(summary(lm(x3$local_data_deaths~x3$infection_deathsXall_Q0.5))$adj.r.squared, 2))
-
-data <- rbind(data.frame("R2_Notifications" = c(-1, 1), "R2_ICU" = c(-1, 1), "R2_Deaths" = c(-1, 1)), data)
-
-radarchart(data)
-
-ggplot(data = x2, aes(x = times, y = notifications_at_sympt_onset, group = Scenario, col = Scenario)) +
-  geom_line() +
-  geom_point(data = x2, aes(x = times, y = local_data_notifications, group = Scenario)) +
-  facet_grid(~Region) +
-  theme_bw() 
-
-plot(x$times, x$notifications_at_sympt_onset, type = 'l')
-points(x$times, x$local_data_deaths, col = 'red', pch = 16)
-
-# these aren't really correct, because they are the newly 7 day average values
-fileName_caldata <- paste0("powerbi_derived_ouputs/", runDate, "_", site, "_notifications.csv")
-calValData <- read.csv(fileName_caldata, head = T, stringsAsFactors = F)  
-
-x <- merge(doutputs, calValData, by = "times", all = T)
-plot(x$values, x$notifications_at_sympt_onset, pch = 16, xlab = "Confirmed cases", ylab = "Predicted notifications")
-abline(0,1)
-
-plot(x$times, x$notifications_at_sympt_onset)
-points(x$times, x$values, col = "red")
-
-# overprediction
-plot(x$times, (x$notifications_at_sympt_onset)-x$values, type = 'b', pch = 16)
+for(rg in regions){
+  x3 <- subset(x2, Region == rg & Scenario == scenariox)
+  data <- data.frame("Notifications" = round(summary(lm(x3$local_data_notifications~x3[,Q50]))$adj.r.squared, 2),
+                     "ICU" = round(summary(lm(x3$local_data_icu~x3$prevXlate_activeXclinical_icuXamong_Q0.5))$adj.r.squared, 2),
+                     "Deaths" = round(summary(lm(x3$local_data_deaths~x3$infection_deathsXall_Q0.5))$adj.r.squared, 2))
+  data <- rbind(data.frame("Notifications" = c(1, 0), "ICU" = c(1, 0), "Deaths" = c(1, 0)), data)
+  radarchart(data,  cglcol="grey", cglty=1, axislabcol="black", cglwd=0.8)
+}
