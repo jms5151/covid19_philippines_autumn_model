@@ -3,16 +3,15 @@ rm(list=ls()) #remove previous variable assignments
 
 # load libraries
 library(tidyverse)
-# library(tidyquant)
 library(zoo)
 library(ggplot2)
 
 # load data
-uploadDate <- "2020-08-16"
+uploadDate <- "2020-08-22"
 fileName <- paste0("FASSSTER_Data/ConfirmedCases_Final_", uploadDate, ".csv")
 fassster_data <- read.csv(fileName, head = T, stringsAsFactors = F) 
 
-uploadDate2 <- "20200816"
+uploadDate2 <- "20200823"
 fileName2 <- paste0("DOH_COVID_Data_Drop/DOH COVID Data Drop_ ", uploadDate2, " - 05 DOH Data Collect - Daily Report.csv")
 doh_data <- read.csv(fileName2, head = T, stringsAsFactors = F) 
 
@@ -75,7 +74,8 @@ icu <- doh_data2 %>%
 # format, plot, and save data
 dfs <- list(notifications, deaths, icu)
 names <- c("notifications", "deaths", "icu")
-regions <- unique(notifications$Region)
+regions <- c("calabarzon", "central-visayas", "manila", "philippines")
+deathtimes <- c(153, 92, 183, 153)
 
 for(i in 1:length(dfs)){
   # subset by calibration target
@@ -92,19 +92,17 @@ for(i in 1:length(dfs)){
     xlab("Date")
   ggsave(paste0("Figures/", uploadDate, "_", names[i], "_by_region.tiff"))
   # subset by region
-  for(j in regions){
-    dfx2 <- subset(dfx, Region == j)
-    dfx2 <- subset(dfx2, times > 40 & times < max(times)-9)
+  for(j in 1:length(regions)){
+    dfx2 <- subset(dfx, Region == regions[j])
+    if(names[i] == "deaths"){
+      dfx2 <- subset(dfx2, times > deathtimes[j] & times < max(times)-13)  
+    } else {
+      dfx2 <- subset(dfx2, times > 60 & times < max(times)-13)  
+    }
     dfx2 <- dfx2[complete.cases(dfx2),]
-    # format and save data for calibration plots
-    times_wide <- paste(dfx2$times, collapse=", ")
-    values_wide <- paste("[", dfx2$values, "]", collapse=",")
-    values_wide <- gsub(" ", "", values_wide)
-    plot_targets <- c(times_wide, values_wide)
-    writeLines(plot_targets, paste0("Output/", uploadDate, "_", j, "_", names[i], "_wide.txt"))
     # format and save data for calibration targets
     dfx2$times <- paste0(dfx2$times, ",")
     dfx2$values <- paste0(dfx2$values, ",")
-    write.csv(dfx2[,c("times", "values")], paste0("Output/", uploadDate, "_", j, "_", names[i], "_long.csv"), row.names = F)
+    write.csv(dfx2[,c("times", "values")], paste0("Output/", uploadDate, "_", regions[j], "_", names[i], "_long.csv"), row.names = F)
   }
 }
