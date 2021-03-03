@@ -32,7 +32,7 @@ for(i in most_recent_db_files_indexes){
 }
 
 # load calibration data
-uploadDate <- "2020-08-16"
+uploadDate <- "2020-08-22"
 regions <- c("philippines", "manila", "calabarzon", "central-visayas")
 local_data_types <- c("notifications", "icu", "deaths")
 local_data_df <- data.frame()
@@ -154,21 +154,21 @@ for(l in 1:length(model_run_dates)){
   dev.off()
 }
 
-# calculate R2 by week
-test <- x
-test$week <- as.numeric(round(difftime(test$Date, test$Model_run_date, units = "weeks")))
-test$week[test$week <= 0] <- 0
-test <- subset(test, Region == "philippines")
-test2 <- sapply(split(test[,c("local_data_notifications", "notifications_Q0.5")], test$week), function(x) summary(lm(x))$r.sq)
-
-# radar plot
-library(fmsb)
-
-for(rg in regions){
-  x3 <- subset(x2, Region == rg & Scenario == scenariox)
-  data <- data.frame("Notifications" = round(summary(lm(x3$local_data_notifications~x3[,Q50]))$adj.r.squared, 2),
-                     "ICU" = round(summary(lm(x3$local_data_icu~x3$prevXlate_activeXclinical_icuXamong_Q0.5))$adj.r.squared, 2),
-                     "Deaths" = round(summary(lm(x3$local_data_deaths~x3$infection_deathsXall_Q0.5))$adj.r.squared, 2))
-  data <- rbind(data.frame("Notifications" = c(1, 0), "ICU" = c(1, 0), "Deaths" = c(1, 0)), data)
-  radarchart(data,  cglcol="grey", cglty=1, axislabcol="black", cglwd=0.8)
-}
+# # calculate R2 by week
+# test <- x
+# test$week <- as.numeric(round(difftime(test$Date, test$Model_run_date, units = "weeks")))
+# test$week[test$week <= 0] <- 0
+# test <- subset(test, Region == "philippines")
+# test2 <- sapply(split(test[,c("local_data_notifications", "notifications_Q0.5")], test$week), function(x) summary(lm(x))$r.sq)
+# 
+# # radar plot
+# library(fmsb)
+# 
+# for(rg in regions){
+#   x3 <- subset(x2, Region == rg & Scenario == scenariox)
+#   data <- data.frame("Notifications" = round(summary(lm(x3$local_data_notifications~x3[,Q50]))$adj.r.squared, 2),
+#                      "ICU" = round(summary(lm(x3$local_data_icu~x3$prevXlate_activeXclinical_icuXamong_Q0.5))$adj.r.squared, 2),
+#                      "Deaths" = round(summary(lm(x3$local_data_deaths~x3$infection_deathsXall_Q0.5))$adj.r.squared, 2))
+#   data <- rbind(data.frame("Notifications" = c(1, 0), "ICU" = c(1, 0), "Deaths" = c(1, 0)), data)
+#   radarchart(data,  cglcol="grey", cglty=1, axislabcol="black", cglwd=0.8)
+# }

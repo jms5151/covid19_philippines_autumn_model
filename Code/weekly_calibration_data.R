@@ -7,11 +7,11 @@ library(tidyquant)
 library(ggplot2)
 
 # load data
-uploadDate <- "2020-08-08"
+uploadDate <- "2020-08-22"
 fileName <- paste0("FASSSTER_Data/ConfirmedCases_Final_", uploadDate, ".csv")
 fassster_data <- read.csv(fileName, head = T, stringsAsFactors = F) 
 
-uploadDate2 <- "20200809"
+uploadDate2 <- "20200823"
 fileName2 <- paste0("DOH_COVID_Data_Drop/DOH COVID Data Drop_ ", uploadDate2, " - 05 DOH Data Collect - Daily Report.csv")
 doh_data <- read.csv(fileName2, head = T, stringsAsFactors = F) 
 

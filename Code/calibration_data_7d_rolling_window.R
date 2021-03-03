@@ -68,6 +68,7 @@ regions <- unique(notifications$Region)
 
 for(j in 1:length(regions)){
   dfx2 <- subset(notifications, Region == regions[j])
+  dfx2 <- subset(dfx2, times > 60 & times < max(times)-9)
   dfx2 <- dfx2[complete.cases(dfx2),]
   # format and save data for calibration targets
   dfx2$times <- paste0(dfx2$times, ",")
@@ -84,7 +85,7 @@ deaths <- fassster_data2 %>%
   summarise(values = length(Date), Date = max(Date)) 
 
 deaths$times <- as.numeric(difftime(deaths$Date, startdate, units = "days"))
-write.csv(deaths, paste0("Output/", uploadDate, "_deaths.csv"))
+write.csv(deaths, paste0("Output/", uploadDate, "_deaths.csv"), row.names = F)
 
 # most recent ICU data 
 icu <- doh_data2 %>%
@@ -92,8 +93,8 @@ icu <- doh_data2 %>%
   filter(Date <= as.Date(uploadDate, "%Y-%m-%d")) %>%
   filter(Region == "philippines" | Region == "manila" | Region == "calabarzon" | Region == "central-visayas") %>% 
   group_by(Region, Date) %>%
-  summarise(values = sum(icu_o, na.rm = T)) %>%
+  summarise(values = sum(icu_o, na.rm = T)) #%>%
   filter(Date == max(Date))
 
 icu$times <- as.numeric(difftime(icu$Date, startdate, units = "days"))
-write.csv(icu, paste0("Output/", uploadDate, "_icu.csv"))
+write.csv(icu, paste0("Output/", uploadDate, "_icu.csv"), row.names = F)
