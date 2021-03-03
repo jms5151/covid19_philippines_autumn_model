@@ -160,10 +160,10 @@ powerbi_mcmc$Region[powerbi_mcmc$Region == "covid_19-calabarzon"] <- "Calabarzon
 powerbi_mcmc$Region[powerbi_mcmc$Region == "covid_19-central-visayas"] <- "Central Visayas"
 powerbi_mcmc$Region[powerbi_mcmc$Region == "covid_19-manila"] <- "National Capital Region"
 
-# powerbi_derived_outputs$Region[powerbi_derived_outputs$Region == "covid_19-philippines"] <- "Philippines"
-# powerbi_derived_outputs$Region[powerbi_derived_outputs$Region == "covid_19-calabarzon"] <- "Calabarzon"
-# powerbi_derived_outputs$Region[powerbi_derived_outputs$Region == "covid_19-central-visayas"] <- "Central Visayas"
-# powerbi_derived_outputs$Region[powerbi_derived_outputs$Region == "covid_19-manila"] <- "National Capital Region"
+powerbi_derived_outputs$Region[powerbi_derived_outputs$Region == "covid_19-philippines"] <- "Philippines"
+powerbi_derived_outputs$Region[powerbi_derived_outputs$Region == "covid_19-calabarzon"] <- "Calabarzon"
+powerbi_derived_outputs$Region[powerbi_derived_outputs$Region == "covid_19-central-visayas"] <- "Central Visayas"
+powerbi_derived_outputs$Region[powerbi_derived_outputs$Region == "covid_19-manila"] <- "National Capital Region"
 
 # Figure 2 ------------------------------------------------------------------------
 # need to save local data from processing in python
@@ -566,11 +566,6 @@ casesByAge$AgeGroup[casesByAge$Age >=75] <- "75+"
 casesByAge2 <- casesByAge
 casesByAge2$Region <- "Philippines"
 casesByAge3 <- rbind(casesByAge, casesByAge2)
-# casesByAge_cum <- casesByAge3 %>%
-#   filter(Region == "Philippines" | Region == "Central Visayas" | Region == "National Capital Region" | Region == "Calabarzon") %>%
-#   filter(!is.na(AgeGroup)) %>%
-#   group_by(Region, AgeGroup) %>%
-#   summarise(Cumulative_cases = sum(!is.na(Report_Date)))
 
 casesByAge_cumAndProp <- casesByAge3 %>%
   filter(Region == "Philippines" | Region == "Central Visayas" | Region == "National Capital Region" | Region == "Calabarzon") %>%
@@ -581,56 +576,9 @@ casesByAge_cumAndProp <- casesByAge3 %>%
   mutate(Cumulative_cases_prop = Cumulative_cases/total_cases,
          type = "Reported")
 
-# need to subset out modeled data, combine by 10 yr age bins, and then merge with case data
-# modeled_cases <- grep("^notificationsXagegroup", unique(powerbi_uncertainty$type), value = TRUE)
-# casesByAge_modeled <- powerbi_uncertainty[powerbi_uncertainty$type %in% modeled_cases, ]
-# casesByAge_modeled <- casesByAge_modeled[casesByAge_modeled$scenario == 0, ]
-# casesByAge_modeled$AgeGroup <- gsub("notificationsXagegroup_|Xclinical_icu|Xclinical_hospital_non_icu|Xclinical_sympt_isolate", "", casesByAge_modeled$type)
-# 
-# # format
-# casesByAge_modeled$AgeGroup[casesByAge_modeled$AgeGroup == "0"] <- "0-4"
-# casesByAge_modeled$AgeGroup[casesByAge_modeled$Age == "5"] <- "5-9"
-# casesByAge_modeled$AgeGroup[casesByAge_modeled$Age == "10"] <- "10-14"
-# casesByAge_modeled$AgeGroup[casesByAge_modeled$Age == "15"] <- "15-19"
-# casesByAge_modeled$AgeGroup[casesByAge_modeled$Age == "20"] <- "20-24"
-# casesByAge_modeled$AgeGroup[casesByAge_modeled$Age == "25"] <- "25-29"
-# casesByAge_modeled$AgeGroup[casesByAge_modeled$Age =="30"] <- "30-34"
-# casesByAge_modeled$AgeGroup[casesByAge_modeled$Age == "35"] <- "35-39"
-# casesByAge_modeled$AgeGroup[casesByAge_modeled$Age == "40"] <- "40-44"
-# casesByAge_modeled$AgeGroup[casesByAge_modeled$Age == "45"] <- "45-49"
-# casesByAge_modeled$AgeGroup[casesByAge_modeled$Age == "50"] <- "50-54"
-# casesByAge_modeled$AgeGroup[casesByAge_modeled$Age == "55"] <- "55-59"
-# casesByAge_modeled$AgeGroup[casesByAge_modeled$Age == "60"] <- "60-64"
-# casesByAge_modeled$AgeGroup[casesByAge_modeled$Age == "65"] <- "65-69"
-# casesByAge_modeled$AgeGroup[casesByAge_modeled$Age == "70"] <- "70-74"
-# casesByAge_modeled$AgeGroup[casesByAge_modeled$Age == "75"] <- "75+"
-# 
-# casesByAge_modeled_vs_data <- casesByAge_modeled %>%
-#   group_by(Region, AgeGroup, quantile) %>%
-#   summarise(value = sum(value)) %>%
-#   left_join(casesByAge_cum, by = c("Region", "AgeGroup"))
-
 x <- subset(powerbi_derived_outputs, scenario == 0)
 notsByAge <- powerbi_derived_outputs[,grep(".*notificationsXagegroup_.*", colnames(powerbi_derived_outputs))]
 notsByAge$Region <- powerbi_derived_outputs$Region
-
-# notsByAge2 <- notsByAge %>%
-#   gather(key = AgeGroup, value = value, notificationsXagegroup_75:notificationsXagegroup_0) %>%
-#   group_by(Region, AgeGroup) %>%
-#   summarise(cum_vals = sum(value))
-# 
-# notsByAge2$AgeGroup <- gsub("notificationsXagegroup_", "", notsByAge2$AgeGroup)
-# casesByAge_modeled <- notsByAge2
-# casesByAge_modeled2 <- casesByAge_modeled %>%
-#   group_by(Region) %>%
-#   summarise(cum_total = sum(cum_vals)) %>%
-#   right_join(casesByAge_modeled) %>%
-#   mutate(cum_prop = cum_vals/cum_total)
-# 
-# y <- casesByAge_modeled2 %>% left_join(casesByAge_cumAndProp)
-# z <- subset(y, Region == "Philippines")
-# plot(z$cum_vals, z$Cumulative_cases, col = as.factor(z$AgeGroup), pch = 16, cex = 1.5, ylab = c("Cumulative confirmed cases"), xlab = c("Cumulative modeled cases"))
-# plot(z$cum_prop, z$Cumulative_cases_prop, col = as.factor(z$AgeGroup), pch = 16, cex = 1.5, ylab = c("Cumulative confirmed cases"), xlab = c("Cumulative modeled cases"))
 
 notsByAge2 <- notsByAge %>%
   gather(key = AgeGroup, value = value, notificationsXagegroup_75:notificationsXagegroup_0) %>%
@@ -665,9 +613,24 @@ casesByAge_modeled2 <- notsByAge2 %>%
 
 q <- rbind(casesByAge_modeled2, casesByAge_cumAndProp)
 
+ageLevels <- c("0-4",
+               "5-9",
+               "10-14",
+               "15-19",
+               "20-24",
+               "25-29",
+               "30-34",
+               "35-39",
+               "40-44",
+               "45-49",
+               "50-54",
+               "55-59",
+               "60-64",
+               "65-69",
+               "70-74",
+               "75+")
 
-# qplot <- 
-ggplot(q, aes(fill=type, y=Cumulative_cases_prop, x=AgeGroup)) + 
+qplot <- ggplot(q, aes(fill=type, y=Cumulative_cases_prop, x=AgeGroup)) + 
   geom_bar(position="dodge", stat="identity") +
   theme_bw() +
   scale_x_discrete(limits=ageLevels) +
@@ -680,86 +643,6 @@ ggplot(q, aes(fill=type, y=Cumulative_cases_prop, x=AgeGroup)) +
         axis.text.x = element_text(angle = 45, vjust = 0.5, hjust=1))
 
 ggsave(qplot, file = paste0(figures_dir, "/Fig_X_barplot.pdf"), width = 11.19, height = 7.03)
-# proportion
-# casesByAge_modeled_vs_data <- casesByAge_modeled %>%
-#   group_by(Region, AgeGroup, quantile) %>%
-#   summarise(value = sum(value)) %>%
-#   left_join(casesByAge_cumAndProp, by = c("Region", "AgeGroup"))
-# 
-# casesByAge_modeled_vs_data2 <- casesByAge_modeled %>%
-#   group_by(Region, quantile) %>%
-#   summarise(total_modeled_cases = sum(value)) %>%
-#   right_join(casesByAge_modeled_vs_data, by = c("Region", "quantile")) %>%
-#   mutate(Modeled_cases_prop = value/total_modeled_cases)
-
-ageLevels <- c("0-4",
-                       "5-9",
-                       "10-14",
-                       "15-19",
-                       "20-24",
-                       "25-29",
-                       "30-34",
-                       "35-39",
-                       "40-44",
-                       "45-49",
-                       "50-54",
-                       "55-59",
-                       "60-64",
-                       "65-69",
-                       "70-74",
-                       "75+")
-
-# multiplot
-p1 <- ggplot(casesByAge_modeled_vs_data, aes(x=AgeGroup, y=value)) + 
-  geom_boxplot(coef=1e30, alpha = 0.7, fill="#3366FF") +
-  geom_point(casesByAge_modeled_vs_data, mapping = aes(x=AgeGroup, y=Cumulative_cases, fill = "Confirmed cases"), show.legend = TRUE) +
-  facet_wrap(~Region, scales="free_y", ncol = 2) +
-  theme_bw() +
-  scale_x_discrete(limits=ageLevels) +
-  ylab("Cumulative cases") +
-  xlab("Age group (yrs)") +
-  theme(legend.position = c(0.9, 0.9),
-        legend.title = element_blank(),
-        axis.text.x = element_text(angle = 45, vjust = 0.5, hjust=1))
-
-ggsave(p1, file = paste0(figures_dir, "/Fig_X.pdf"), width = 11.19, height = 7.03)
-
-# multiplot proportions
-ggplot(y, aes(x=AgeGroup, y=cum_vals)) +
-  geom_boxplot(coef=1e30, alpha = 0.7, fill="#3366FF") +
-  geom_point(y, mapping = aes(x=AgeGroup, y=Cumulative_cases_prop, fill = "Confirmed cases"), show.legend = TRUE) +
-  facet_wrap(~Region, scales="free_y", ncol = 2) +
-  theme_bw() +
-  scale_x_discrete(limits=ageLevels) +
-  ylab("Cumulative cases") +
-  xlab("Age group (yrs)") +
-  theme(legend.position = c(0.9, 0.9),
-        legend.title = element_blank(),
-        axis.text.x = element_text(angle = 45, vjust = 0.5, hjust=1))
-
-# individual plots by region
-# plotcasesByAge <- function(region, fileName){
-#   x <- subset(casesByAge_modeled_vs_data, Region == region)
-#   
-#   p <- ggplot(x, aes(x=AgeGroup, y=value)) + 
-#     geom_boxplot(coef=1e30, alpha = 0.7, fill="#3366FF") +
-#     geom_point(x, mapping = aes(x=AgeGroup, y=Cumulative_cases, fill = "Confirmed cases"), show.legend = TRUE) +
-#     theme_bw() +
-#     scale_x_discrete(limits=ageLevels) +
-#     ylab("Cumulative cases") +
-#     xlab("Age group (yrs)") +
-#     theme(legend.position = c(0.8, 0.9),
-#           legend.title = element_blank())
-#   
-#   ggsave(file = paste0(figures_dir, "/", fileName, '.pdf'), p, width = 8.67, height = 5.44)
-#   ggsave(file = paste0(figures_dir, "/", fileName, '.jpg'), p, width = 8.67, height = 5.44)
-# }
-# 
-# 
-# plotcasesByAge("Philippines", "Fig_X_Philippines")
-# plotcasesByAge("National Capital Region", "Fig_X_NCR")
-# plotcasesByAge("Calabarzon", "Fig_X_Calabarzon")
-# plotcasesByAge("Central Visayas", "Fig_X_Central_Visayas")
 
 # percent recovered
 recov <- subset(powerbi_uncertainty, scenario == 0 & Region == "Philippines" & type == "proportion_seropositive")
